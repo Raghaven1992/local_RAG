@@ -103,7 +103,7 @@ def run_rag_system():
         # STAGE 1: RETRIEVAL
         start_retrieval = time.perf_counter()
         # Retrieving Top 40 chunks for better context
-        results = db.similarity_search(query_text, k=40)
+        results = db.similarity_search(query_text, k=9)
         retrieval_time = time.perf_counter() - start_retrieval
 
         # STAGE 2: GENERATION
