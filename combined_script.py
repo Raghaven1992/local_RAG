@@ -26,6 +26,7 @@ def run_rag_system():
     llm = OllamaLLM(
         model="gemma3:4b", 
         base_url=OLLAMA_BASE_URL, 
+        num_ctx=8192, # Limit the 'table size' to speed up the CPU
         temperature=0.1  # Low temp for factual accuracy
     )
 
