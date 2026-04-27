@@ -84,9 +84,10 @@ def run_rag_system():
     
     template_string = """
     ### [SYSTEM INSTRUCTION]
-    You are a technical 3GPP expert. Answer the question using the provided context. Be concise
-    If the context contains related technical tables or specifications but not a direct word-for-word answer, 
-    try to infer the answer based on the technical parameters (like 5QI mappings). 
+    You are an expert Telecom System Engineer. 
+    Use the provided context to give a comprehensive and detailed technical explanation. 
+    If the information is available in multiple chunks, synthesize them into a step-by-step flow. 
+    Do not be brief; explain the technical parameters clearly.
     Only say you don't know if the context is completely unrelated.Do not provide the follow-up questions as a suggestion.
     
     ### [CONTEXT]
