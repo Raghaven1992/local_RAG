@@ -2,7 +2,7 @@ import os
 import shutil
 import warnings
 
-# Suppress warnings
+# Suppress warnings for a cleaner UI
 warnings.filterwarnings("ignore", category=UserWarning)
 
 from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
@@ -11,9 +11,16 @@ from langchain_ollama import OllamaEmbeddings, OllamaLLM
 from langchain_chroma import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 
-# --- CONFIGURATION ---
-DATA_PATH = "D:/New_App/data"
-CHROMA_PATH = "D:/New_App/chroma_db"
+# --- DYNAMIC CONFIGURATION ---
+# This automatically finds the folder where this script is saved
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Data folder for your PDFs (relative path)
+DATA_PATH = os.path.join(BASE_DIR, "data")
+
+# ChromaDB folder for your vectors (relative path)
+CHROMA_PATH = os.path.join(BASE_DIR, "chroma_db")
+
 OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 
 def run_rag_system():
@@ -22,13 +29,20 @@ def run_rag_system():
     embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url=OLLAMA_BASE_URL)
     llm = OllamaLLM(model="gemma3:4b", base_url=OLLAMA_BASE_URL, temperature=0.1)
 
+    # Ensure the data folder exists so the user knows where to put PDFs
+    if not os.path.exists(DATA_PATH):
+        os.makedirs(DATA_PATH)
+        print(f"📁 Created 'data' folder at: {DATA_PATH}")
+        print("👉 Please drop your PDF files into that folder and run this script again.")
+        return
+
     # 2. ASK USER: FRESH START OR CONTINUE?
-    choice = input("Do you want to (1) Re-ingest documents or (2) Start chatting directly? [1/2]: ")
+    choice = input("\nDo you want to (1) Re-ingest documents or (2) Start chatting directly? [1/2]: ")
 
     if choice == "1":
         # WIPE OLD DATA
         if os.path.exists(CHROMA_PATH):
-            print(f"Cleaning up old database...")
+            print(f"Cleaning up old database at {CHROMA_PATH}...")
             shutil.rmtree(CHROMA_PATH)
 
         # LOAD AND CHUNK
@@ -36,9 +50,13 @@ def run_rag_system():
         loader = DirectoryLoader(DATA_PATH, glob="*.pdf", loader_cls=PyPDFLoader)
         docs = loader.load()
         
+        if not docs:
+            print("❌ No PDFs found in the 'data' folder. Ingestion cancelled.")
+            return
+
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=700, chunk_overlap=100)
         chunks = text_splitter.split_documents(docs)
-        print(f"Created {len(chunks)} chunks.")
+        print(f"✅ Created {len(chunks)} chunks.")
 
         # CREATE VECTOR STORE
         print("Indexing to ChromaDB (This may take a moment)...")
@@ -46,6 +64,9 @@ def run_rag_system():
         print("✅ Indexing Complete!")
     else:
         # LOAD EXISTING DB
+        if not os.path.exists(CHROMA_PATH):
+            print("❌ No existing database found. Please run Option 1 first.")
+            return
         db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embeddings)
         print("✅ Loaded existing database.")
 
@@ -55,7 +76,7 @@ def run_rag_system():
     template_string = """
     ### [SYSTEM INSTRUCTION]
     Use ONLY the provided context to answer the question. 
-    If the answer isn't in the context, say you don't know.
+    If the answer isn't in the context, strictly say you don't know.
     
     ### [CONTEXT]
     {context}
@@ -69,9 +90,12 @@ def run_rag_system():
 
     while True:
         query = input("\nYour Question: ")
-        if query.lower() == "quit": break
+        if query.lower() == "quit": 
+            print("Goodbye!")
+            break
 
-        # RETRIEVAL (Using simple similarity to avoid score issues)
+        # RETRIEVAL 
+        # Note: k=40 provides a lot of data. If the AI gets confused, try reducing to k=10.
         results = db.similarity_search(query, k=40)
         
         # DEBUG PREVIEW
@@ -85,7 +109,7 @@ def run_rag_system():
         
         sources = {doc.metadata.get("source") for doc in results}
         print(f"\nResponse: {response}")
-        print(f"Sources: {sources}")
+        print(f"\nSources used: {sources}")
 
 if __name__ == "__main__":
     run_rag_system()
