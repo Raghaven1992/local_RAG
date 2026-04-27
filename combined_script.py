@@ -83,10 +83,10 @@ def run_rag_system():
     
     template_string = """
     ### [SYSTEM INSTRUCTION]
-    You are a technical 3GPP expert. Answer the question using the provided context. 
+    You are a technical 3GPP expert. Answer the question using the provided context. Be concise
     If the context contains related technical tables or specifications but not a direct word-for-word answer, 
     try to infer the answer based on the technical parameters (like 5QI mappings). 
-    Only say you don't know if the context is completely unrelated.
+    Only say you don't know if the context is completely unrelated.Do not provide the follow-up questions as a suggestion.
     
     ### [CONTEXT]
     {context}
