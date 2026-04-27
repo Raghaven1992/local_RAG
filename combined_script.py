@@ -56,7 +56,12 @@ def run_rag_system():
             print("❌ No PDF files found! Please add documents to the /data folder.")
             return
 
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=700, chunk_overlap=100)
+        # UPDATE: Increase chunk size and overlap to keep table rows together
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1200,    # Increased from 700
+            chunk_overlap=300,  # Increased from 100
+            separators=["\n\n", "\n", ".", " "] # Helps keep table rows intact
+            )
         chunks = text_splitter.split_documents(docs)
         print(f"✂️  Created {len(chunks)} text chunks.")
 
@@ -78,8 +83,10 @@ def run_rag_system():
     
     template_string = """
     ### [SYSTEM INSTRUCTION]
-    You are a professional technical assistant. Use ONLY the provided context to answer. 
-    If the answer is not in the context, strictly say: "I am sorry, but the provided documentation does not contain this information."
+    You are a technical 3GPP expert. Answer the question using the provided context. 
+    If the context contains related technical tables or specifications but not a direct word-for-word answer, 
+    try to infer the answer based on the technical parameters (like 5QI mappings). 
+    Only say you don't know if the context is completely unrelated.
     
     ### [CONTEXT]
     {context}
