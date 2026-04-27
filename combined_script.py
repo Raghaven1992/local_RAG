@@ -1,8 +1,9 @@
 import os
 import shutil
 import warnings
+import time
 
-# Suppress warnings for a cleaner UI
+# Suppress irrelevant warnings for a cleaner terminal UI
 warnings.filterwarnings("ignore", category=UserWarning)
 
 from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
@@ -12,71 +13,73 @@ from langchain_chroma import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 
 # --- DYNAMIC CONFIGURATION ---
-# This automatically finds the folder where this script is saved
+# Detects the script location to ensure it runs on any machine (Portable)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Data folder for your PDFs (relative path)
 DATA_PATH = os.path.join(BASE_DIR, "data")
-
-# ChromaDB folder for your vectors (relative path)
 CHROMA_PATH = os.path.join(BASE_DIR, "chroma_db")
-
 OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 
 def run_rag_system():
-    # 1. SETUP MODELS
-    print("--- Initializing Models ---")
+    # 1. INITIALIZATION
+    print("--- 🤖 Initializing AI Models (Gemma 3 & Nomic) ---")
     embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url=OLLAMA_BASE_URL)
-    llm = OllamaLLM(model="gemma3:4b", base_url=OLLAMA_BASE_URL, temperature=0.1)
+    llm = OllamaLLM(
+        model="gemma3:4b", 
+        base_url=OLLAMA_BASE_URL, 
+        temperature=0.1  # Low temp for factual accuracy
+    )
 
-    # Ensure the data folder exists so the user knows where to put PDFs
+    # Safety Check: Create data folder if missing
     if not os.path.exists(DATA_PATH):
         os.makedirs(DATA_PATH)
-        print(f"📁 Created 'data' folder at: {DATA_PATH}")
-        print("👉 Please drop your PDF files into that folder and run this script again.")
+        print(f"📁 Created 'data' folder. Place your PDFs in: {DATA_PATH}")
         return
 
-    # 2. ASK USER: FRESH START OR CONTINUE?
-    choice = input("\nDo you want to (1) Re-ingest documents or (2) Start chatting directly? [1/2]: ")
+    # 2. SELECTION MENU
+    print("\n[RAG MODE SELECTION]")
+    print("(1) Ingest: Wipe old data and process new PDFs")
+    print("(2) Chat:  Ask questions using existing database")
+    choice = input("Enter selection [1/2]: ")
 
     if choice == "1":
         # WIPE OLD DATA
         if os.path.exists(CHROMA_PATH):
-            print(f"Cleaning up old database at {CHROMA_PATH}...")
+            print(f"🧹 Clearing existing vector database...")
             shutil.rmtree(CHROMA_PATH)
 
         # LOAD AND CHUNK
-        print(f"Loading PDFs from {DATA_PATH}...")
+        print(f"📂 Loading documents from: {DATA_PATH}")
         loader = DirectoryLoader(DATA_PATH, glob="*.pdf", loader_cls=PyPDFLoader)
         docs = loader.load()
         
         if not docs:
-            print("❌ No PDFs found in the 'data' folder. Ingestion cancelled.")
+            print("❌ No PDF files found! Please add documents to the /data folder.")
             return
 
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=700, chunk_overlap=100)
         chunks = text_splitter.split_documents(docs)
-        print(f"✅ Created {len(chunks)} chunks.")
+        print(f"✂️  Created {len(chunks)} text chunks.")
 
         # CREATE VECTOR STORE
-        print("Indexing to ChromaDB (This may take a moment)...")
+        print("🔢 Indexing vectors to ChromaDB (This may take a minute)...")
         db = Chroma.from_documents(chunks, embeddings, persist_directory=CHROMA_PATH)
-        print("✅ Indexing Complete!")
+        print("✅ Indexing complete! Your knowledge base is ready.")
+    
     else:
-        # LOAD EXISTING DB
+        # LOAD EXISTING DATABASE
         if not os.path.exists(CHROMA_PATH):
-            print("❌ No existing database found. Please run Option 1 first.")
+            print("❌ Database not found. Please run Option 1 first.")
             return
         db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embeddings)
-        print("✅ Loaded existing database.")
+        print("✅ Successfully loaded the existing knowledge base.")
 
-    # 3. THE CHAT LOOP
-    print("\n--- 🤖 Local RAG Assistant Ready! (Type 'quit' to exit) ---")
+    # 3. THE INTERACTIVE CHAT LOOP
+    print("\n--- 🧠 AI Assistant Ready! (Type 'quit' to exit) ---")
     
     template_string = """
     ### [SYSTEM INSTRUCTION]
-    Use ONLY the provided context to answer the question. 
-    If the answer isn't in the context, strictly say you don't know.
+    You are a professional technical assistant. Use ONLY the provided context to answer. 
+    If the answer is not in the context, strictly say: "I am sorry, but the provided documentation does not contain this information."
     
     ### [CONTEXT]
     {context}
@@ -89,27 +92,41 @@ def run_rag_system():
     prompt_template = ChatPromptTemplate.from_template(template_string)
 
     while True:
-        query = input("\nYour Question: ")
-        if query.lower() == "quit": 
-            print("Goodbye!")
+        query_text = input("\nYour Question: ")
+        if query_text.lower() == "quit":
+            print("Shutting down...")
             break
 
-        # RETRIEVAL 
-        # Note: k=40 provides a lot of data. If the AI gets confused, try reducing to k=10.
-        results = db.similarity_search(query, k=40)
-        
-        # DEBUG PREVIEW
-        print(f"--- Found {len(results)} relevant snippets ---")
-        
-        context_text = "\n\n---\n\n".join([doc.page_content for doc in results])
-        full_prompt = prompt_template.format(context=context_text, question=query)
+        # --- LATENCY TRACKING START ---
+        start_total = time.perf_counter()
 
-        print("Generating Answer...")
-        response = llm.invoke(full_prompt)
-        
-        sources = {doc.metadata.get("source") for doc in results}
+        # STAGE 1: RETRIEVAL
+        start_retrieval = time.perf_counter()
+        # Retrieving Top 40 chunks for better context
+        results = db.similarity_search(query_text, k=40)
+        retrieval_time = time.perf_counter() - start_retrieval
+
+        # STAGE 2: GENERATION
+        context_text = "\n\n---\n\n".join([doc.page_content for doc in results])
+        formatted_prompt = prompt_template.format(context=context_text, question=query_text)
+
+        print("AI is thinking...")
+        start_gen = time.perf_counter()
+        response = llm.invoke(formatted_prompt)
+        generation_time = time.perf_counter() - start_gen
+
+        total_latency = time.perf_counter() - start_total
+
+        # --- OUTPUT ---
         print(f"\nResponse: {response}")
-        print(f"\nSources used: {sources}")
+        print(f"\nSources: {list(set([doc.metadata.get('source') for doc in results]))}")
+        
+        print("-" * 30)
+        print(f"⏱️  LATENCY REPORT:")
+        print(f"  └─ Search:     {retrieval_time:.3f}s")
+        print(f"  └─ Generation: {generation_time:.3f}s")
+        print(f"  └─ TOTAL:      {total_latency:.3f}s")
+        print("-" * 30)
 
 if __name__ == "__main__":
     run_rag_system()
