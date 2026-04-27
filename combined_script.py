@@ -59,8 +59,8 @@ def run_rag_system():
 
         # UPDATE: Increase chunk size and overlap to keep table rows together
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=2000,    # Increased from 700
-            chunk_overlap=300,  # Increased from 100
+            chunk_size=600,    # Increased from 700
+            chunk_overlap=100,  # Increased from 100
             separators=["\n\n", "\n", ".", " "] # Helps keep table rows intact
             )
         chunks = text_splitter.split_documents(docs)
