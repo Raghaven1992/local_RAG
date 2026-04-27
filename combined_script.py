@@ -58,7 +58,7 @@ def run_rag_system():
 
         # UPDATE: Increase chunk size and overlap to keep table rows together
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1200,    # Increased from 700
+            chunk_size=2000,    # Increased from 700
             chunk_overlap=300,  # Increased from 100
             separators=["\n\n", "\n", ".", " "] # Helps keep table rows intact
             )
@@ -110,7 +110,7 @@ def run_rag_system():
         # STAGE 1: RETRIEVAL
         start_retrieval = time.perf_counter()
         # Retrieving Top 40 chunks for better context
-        results = db.similarity_search(query_text, k=9)
+        results = db.similarity_search(query_text, k=7)
         retrieval_time = time.perf_counter() - start_retrieval
 
         # STAGE 2: GENERATION
