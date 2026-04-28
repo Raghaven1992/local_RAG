@@ -24,7 +24,7 @@ def run_rag_system():
     print("--- 🤖 Initializing AI Models (Gemma 3 & Nomic) ---")
     embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url=OLLAMA_BASE_URL)
     llm = OllamaLLM(
-        model="gemma3:4b", 
+        model="llama3.2", 
         base_url=OLLAMA_BASE_URL, 
         num_ctx=8192, # Limit the 'table size' to speed up the CPU
         temperature=0.1  # Low temp for factual accuracy
@@ -111,7 +111,7 @@ def run_rag_system():
 
         # STAGE 1: RETRIEVAL
         start_retrieval = time.perf_counter()
-        # Retrieving Top 40 chunks for better context
+        # Retrieving Top chunks for better context
         results = db.similarity_search(query_text, k=15)
         retrieval_time = time.perf_counter() - start_retrieval
 
